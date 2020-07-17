@@ -1,209 +1,175 @@
-import Head from 'next/head'
+import {useEffect} from 'react'
+import getConfig from "next/config";
+const {publicRuntimeConfig}  = getConfig()
+import {connect} from 'react-redux'
+import {MailOutlined} from '@ant-design/icons'
+import {Tabs}  from 'antd'
+import Router,{withRouter} from 'next/router'
+import Repo from '../components/Repo'
+const api = require('../lib/api')
+import {Button} from 'antd'
+import LRU from 'lru-cache'
+import {cacheArray}  from "../lib/repo-basic-cache";
 
-export default function Home() {
-  return (
-    <div className="container">
-      <Head>
-        <title>Create Next App</title>
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
+const cache = new LRU({
+    maxAge: 1000 * 60 * 10
+})
 
-      <main>
-        <h1 className="title">
-          Welcome to <a href="https://nextjs.org">Next.js!</a>
-        </h1>
+let cachedUserRepos, cachedUserStarredRepos
 
-        <p className="description">
-          Get started by editing <code>pages/index.js</code>
-        </p>
 
-        <div className="grid">
-          <a href="https://nextjs.org/docs" className="card">
-            <h3>Documentation &rarr;</h3>
-            <p>Find in-depth information about Next.js features and API.</p>
-          </a>
+const isServer = typeof window===undefined
+function Index({userRepos, userStarredRepos, user, router}) {
+    console.log(userRepos, userStarredRepos)
 
-          <a href="https://nextjs.org/learn" className="card">
-            <h3>Learn &rarr;</h3>
-            <p>Learn about Next.js in an interactive course with quizzes!</p>
-          </a>
+    const tabKey = router.query.key ||'1'
 
-          <a
-            href="https://github.com/vercel/next.js/tree/master/examples"
-            className="card"
-          >
-            <h3>Examples &rarr;</h3>
-            <p>Discover and deploy boilerplate example Next.js projects.</p>
-          </a>
+    const handleTabChange = (activeKey)=>{
+        Router.push(`/?key=${activeKey}`);
+    }
 
-          <a
-            href="https://vercel.com/import?filter=next.js&utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className="card"
-          >
-            <h3>Deploy &rarr;</h3>
-            <p>
-              Instantly deploy your Next.js site to a public URL with Vercel.
-            </p>
-          </a>
+    useEffect(()=>{
+        if(!isServer) {
+            // cachedUserRepos = userRepos;
+            // cachedUserStarredRepos = userStarredRepos;
+            if(userRepos) {
+                cache.set('userRepos', userRepos);
+            }
+            if(userStarredRepos) {
+                cache.set('userStarredRepos', userStarredRepos);
+            }
+        }
+    }, [userRepos,userStarredRepos])
+    useEffect(()=>{
+        if(!isServer) {
+            cacheArray(userRepos);
+            cacheArray(userStarredRepos);
+        }
+    })
+    if(!user||!user.id) {
+        return <div className="root">
+            <p>Bisou bisou, you have not logged in</p>
+            <Button type="primary" href={publicRuntimeConfig.OAUTH_URL}>Click On to Login</Button>
+            <style jsx>{`
+                .root {
+                    height:400px;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                }
+            `}
+
+            </style>
         </div>
-      </main>
+    }
 
-      <footer>
-        <a
-          href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Powered by{' '}
-          <img src="/vercel.svg" alt="Vercel Logo" className="logo" />
-        </a>
-      </footer>
+    return (
+        <div className="root">
+            <div className="user-info">
+                <img src={user.avatar_url} alt="user avatar" className="avatar"/>
+                <span className="login">{user.login}</span>
+                <span className="name">{user.name}</span>
+                <span className="bio">{user.bio}</span>
+                <p className="email">
+                    <MailOutlined style={{marginRight: 10}}/>
+                    <a href={`mailto:${user.email}`}>{user.email}</a>
+                </p>
+            </div>
+                <div className="user-repos">
 
-      <style jsx>{`
-        .container {
-          min-height: 100vh;
-          padding: 0 0.5rem;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
-        }
 
-        main {
-          padding: 5rem 0;
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
-        }
+                    <Tabs ActiveKey={tabKey} onChange={handleTabChange} animated={false}>
+                        <Tabs.TabPane tab="Your Repositories" key="1">
+                            {
+                                userRepos.map(repo=><Repo key={repo.id} repo={repo}/>)
+                            }
+                        </Tabs.TabPane>
+                        <Tabs.TabPane tab="Your Following Repositories" key="2">
+                            {
+                                userStarredRepos.map(repo=><Repo key={repo.id} repo={repo}/>)
+                            }
+                        </Tabs.TabPane>
+                    </Tabs>
+                </div>
 
-        footer {
-          width: 100%;
-          height: 100px;
-          border-top: 1px solid #eaeaea;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-        }
+            <style jsx>{`
+                .root{
+                    display: flex;
+                    align-items: flex-start;
+                    padding: 20px
+                }
+                .user-info{
+                    width: 200px;
+                    margin-right: 40px;
+                    flex-shrink: 0;
+                    display: flex;
+                    flex-direction: column;
+                
+                }
+                .login{
+                    font-weight: 800;
+                    font-size: 20px;
+                    margin-top: 20px;
+                }
+                .name{
+                    font-size: 16px;
+                    color: #777;
+                }
+                .bio {
+                    margin-top: 20px;
+                    color: #333;
+                }
+                .avatar{
+                    width: 100%;
+                    border-radius: 5px;
+                }
+                .user-repos{
+                    flex-grow: 1;
+                }
+            `}
 
-        footer img {
-          margin-left: 0.5rem;
-        }
-
-        footer a {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-        }
-
-        a {
-          color: inherit;
-          text-decoration: none;
-        }
-
-        .title a {
-          color: #0070f3;
-          text-decoration: none;
-        }
-
-        .title a:hover,
-        .title a:focus,
-        .title a:active {
-          text-decoration: underline;
-        }
-
-        .title {
-          margin: 0;
-          line-height: 1.15;
-          font-size: 4rem;
-        }
-
-        .title,
-        .description {
-          text-align: center;
-        }
-
-        .description {
-          line-height: 1.5;
-          font-size: 1.5rem;
-        }
-
-        code {
-          background: #fafafa;
-          border-radius: 5px;
-          padding: 0.75rem;
-          font-size: 1.1rem;
-          font-family: Menlo, Monaco, Lucida Console, Liberation Mono,
-            DejaVu Sans Mono, Bitstream Vera Sans Mono, Courier New, monospace;
-        }
-
-        .grid {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-wrap: wrap;
-
-          max-width: 800px;
-          margin-top: 3rem;
-        }
-
-        .card {
-          margin: 1rem;
-          flex-basis: 45%;
-          padding: 1.5rem;
-          text-align: left;
-          color: inherit;
-          text-decoration: none;
-          border: 1px solid #eaeaea;
-          border-radius: 10px;
-          transition: color 0.15s ease, border-color 0.15s ease;
-        }
-
-        .card:hover,
-        .card:focus,
-        .card:active {
-          color: #0070f3;
-          border-color: #0070f3;
-        }
-
-        .card h3 {
-          margin: 0 0 1rem 0;
-          font-size: 1.5rem;
-        }
-
-        .card p {
-          margin: 0;
-          font-size: 1.25rem;
-          line-height: 1.5;
-        }
-
-        .logo {
-          height: 1em;
-        }
-
-        @media (max-width: 600px) {
-          .grid {
-            width: 100%;
-            flex-direction: column;
-          }
-        }
-      `}</style>
-
-      <style jsx global>{`
-        html,
-        body {
-          padding: 0;
-          margin: 0;
-          font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto,
-            Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue,
-            sans-serif;
-        }
-
-        * {
-          box-sizing: border-box;
-        }
-      `}</style>
-    </div>
-  )
+            </style>
+        </div>
+    )
 }
+
+
+Index.getInitialProps = async ({ctx, reduxStore})=>{
+    const user = reduxStore.getState().user
+    if(!user || !user.id) return {}
+
+    if(!isServer) {
+        if(cache.get('userRepos') && cache.get('userStarredRepos')) {
+            return {
+                userRepos: cache.get('userRepos'),
+                userStarredRepos: cache.get('userStarredRepos')
+            }
+        }
+
+    }
+
+
+    const userRepos = await api.request({
+        url: '/user/repos',
+    },
+        ctx.req,
+        ctx.res)
+
+    const userStarredRepos= await api.request({
+        url: '/user/starred'
+    },
+        ctx.req,
+        ctx.res)
+
+    return {
+        userRepos: userRepos.data,
+        userStarredRepos: userStarredRepos.data
+    }
+}
+
+export default withRouter(connect(function mapState(state){
+    return {
+        user:state.user
+    }
+})(Index))
